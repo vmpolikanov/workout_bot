@@ -3,3 +3,5 @@ anthropic==0.40.0
 httpx==0.27.2
 aiohttp==3.10.5
 gspread==6.1.2
+google-api-python-client==2.120.0
+google-auth==2.29.0
