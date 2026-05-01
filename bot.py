@@ -8,6 +8,8 @@ from anthropic import Anthropic
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 import gspread
 from google.oauth2.service_account import Credentials
+import asyncio
+from datetime import time as dtime
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     filters, ContextTypes
@@ -23,6 +25,148 @@ ALLOWED_USER_ID = int(os.environ.get("ALLOWED_USER_ID", "0"))
 client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
 SPREADSHEET_ID = "1PfZefjJFlIwKUFpbhq63jUsLDZpPc6sXO3And6WMeEY"
+WHOOP_EMAIL = os.environ.get("WHOOP_EMAIL", "")
+WHOOP_PASSWORD = os.environ.get("WHOOP_PASSWORD", "")
+
+async def get_whoop_data() -> dict | None:
+    """Fetch today's Whoop recovery, sleep and strain data."""
+    if not WHOOP_EMAIL or not WHOOP_PASSWORD:
+        return None
+    try:
+        import aiohttp as _aiohttp
+        # Step 1: authenticate
+        async with _aiohttp.ClientSession() as session:
+            auth_resp = await session.post(
+                "https://api-7.whoop.com/oauth/token",
+                json={
+                    "grant_type": "password",
+                    "issueRefresh": False,
+                    "password": WHOOP_PASSWORD,
+                    "username": WHOOP_EMAIL
+                }
+            )
+            if auth_resp.status != 200:
+                logger.error(f"Whoop auth failed: {auth_resp.status}")
+                return None
+            auth_data = await auth_resp.json()
+            token = auth_data.get("access_token")
+            user_id = auth_data.get("user", {}).get("id")
+            if not token or not user_id:
+                return None
+
+            headers = {"Authorization": f"bearer {token}"}
+
+            # Step 2: get recovery
+            # Get last 2 cycles: [0] = today (current), [1] = yesterday (completed)
+            rec_resp = await session.get(
+                f"https://api-7.whoop.com/users/{user_id}/cycles",
+                headers=headers,
+                params={"limit": 2}
+            )
+            if rec_resp.status != 200:
+                return None
+            rec_data = await rec_resp.json()
+            cycles = rec_data.get("records", [])
+            if not cycles:
+                return None
+
+            # Today's cycle — for recovery, HRV, RHR, sleep
+            today_cycle = cycles[0]
+            # Yesterday's completed cycle — for Strain
+            yesterday_cycle = cycles[1] if len(cycles) > 1 else None
+
+            recovery = today_cycle.get("recovery", {})
+            sleep = today_cycle.get("sleep", {})
+
+            recovery_score = recovery.get("score")
+            hrv = recovery.get("hrvRmssd")
+            rhr = recovery.get("restingHeartRate")
+            sleep_duration = sleep.get("qualityDuration", 0)
+            sleep_hours = round(sleep_duration / 3600000, 1) if sleep_duration else None
+
+            # Strain from yesterday's completed cycle
+            strain_score = None
+            if yesterday_cycle:
+                strain_score = yesterday_cycle.get("strain", {}).get("score")
+
+            return {
+                "recovery": round(recovery_score) if recovery_score else None,
+                "hrv": round(hrv) if hrv else None,
+                "rhr": round(rhr) if rhr else None,
+                "sleep_hours": sleep_hours,
+                "strain": round(strain_score, 1) if strain_score else None
+            }
+    except Exception as e:
+        logger.error(f"Whoop error: {e}")
+        return None
+
+def get_whoop_sheet():
+    """Get or create Whoop sheet in spreadsheet."""
+    try:
+        creds_json = os.environ.get("GOOGLE_CREDENTIALS", "")
+        if not creds_json:
+            return None
+        import json as _json
+        creds_data = _json.loads(creds_json)
+        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+        creds = Credentials.from_service_account_info(creds_data, scopes=scopes)
+        gc = gspread.authorize(creds)
+        sh = gc.open_by_key(SPREADSHEET_ID)
+        try:
+            return sh.worksheet("Whoop")
+        except:
+            ws = sh.add_worksheet(title="Whoop", rows=1000, cols=10)
+            ws.append_row(["Дата", "Recovery %", "HRV (мс)", "ЧСС покоя", "Сон (ч)", "Strain"])
+            return ws
+    except Exception as e:
+        logger.error(f"Whoop sheet error: {e}")
+        return None
+
+async def save_whoop_to_sheet(data: dict):
+    """Save Whoop data to Google Sheets."""
+    try:
+        sheet = get_whoop_sheet()
+        if not sheet:
+            return
+        today = datetime.now().strftime("%-d %b %Y")
+        # Check if today already exists
+        all_dates = sheet.col_values(1)
+        if today in all_dates:
+            return  # Already saved today
+        sheet.append_row([
+            today,
+            data.get("recovery", ""),
+            data.get("hrv", ""),
+            data.get("rhr", ""),
+            data.get("sleep_hours", ""),
+            data.get("strain", "")
+        ])
+        logger.info(f"Whoop data saved: {data}")
+    except Exception as e:
+        logger.error(f"Whoop sheet save error: {e}")
+
+def format_whoop_message(data: dict) -> str:
+    recovery = data.get("recovery")
+    if recovery is None:
+        return ""
+    if recovery >= 67:
+        emoji = "🟢"
+    elif recovery >= 34:
+        emoji = "🟡"
+    else:
+        emoji = "🔴"
+    
+    lines = [f"\n📊 *Whoop сегодня:*"]
+    lines.append(f"{emoji} Recovery: *{recovery}%*")
+    if data.get("hrv"):
+        lines.append(f"💓 HRV: {data['hrv']} мс")
+    if data.get("rhr"):
+        lines.append(f"❤️ ЧСС покоя: {data['rhr']} уд/мин")
+    if data.get("sleep_hours"):
+        lines.append(f"😴 Сон: {data['sleep_hours']} ч")
+    if data.get("strain"):
+        lines.append(f"⚡ Strain вчера: {data['strain']}")
+    return "\n".join(lines)
 
 def get_sheet():
     try:
@@ -554,6 +698,30 @@ def is_allowed(update: Update) -> bool:
         return True
     return update.effective_user.id == ALLOWED_USER_ID
 
+async def cmd_whoop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update):
+        return
+    await update.message.reply_text("⏳ Получаю данные из Whoop...")
+    data = await get_whoop_data()
+    if data:
+        await save_whoop_to_sheet(data)
+        msg = format_whoop_message(data)
+        await update.message.reply_text(msg, parse_mode="Markdown")
+    else:
+        await update.message.reply_text("❌ Не удалось получить данные. Проверь WHOOP_EMAIL и WHOOP_PASSWORD в Railway.")
+
+async def daily_whoop_job(context):
+    """Daily job at 13:00 MSK to fetch Whoop data."""
+    try:
+        data = await get_whoop_data()
+        if data and ALLOWED_USER_ID:
+            await save_whoop_to_sheet(data)
+            msg = format_whoop_message(data)
+            if msg:
+                await context.bot.send_message(chat_id=ALLOWED_USER_ID, text=msg, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"Daily whoop job error: {e}")
+
 async def cmd_importsheet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
         return
@@ -757,6 +925,10 @@ def main():
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("exportsheet", cmd_exportsheet))
     app.add_handler(CommandHandler("importsheet", cmd_importsheet))
+    app.add_handler(CommandHandler("whoop", cmd_whoop))
+    
+    # Daily Whoop job at 13:00 MSK = 10:00 UTC
+    app.job_queue.run_daily(daily_whoop_job, time=dtime(hour=10, minute=0))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(CommandHandler("cancel", cmd_cancel))
     app.add_handler(CommandHandler("history", cmd_history))
