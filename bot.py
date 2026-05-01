@@ -5,7 +5,7 @@ import logging
 import sqlite3
 from datetime import datetime
 from anthropic import Anthropic
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     filters, ContextTypes
@@ -35,59 +35,37 @@ INITIAL_HISTORY = [
   {"date":"2026-02-13T14:22:00","exercises":[{"name":"Румынская тяга со штангой","sets":[{"weight":"60","reps":"10"},{"weight":"60","reps":"10"},{"weight":"60","reps":"10"},{"weight":"60","reps":"10"},{"weight":"60","reps":"10"}]},{"name":"Жим гантелей сидя вверх плечи","sets":[{"weight":"22","reps":"8"},{"weight":"22","reps":"8"},{"weight":"22","reps":"8"},{"weight":"22","reps":"8"}]},{"name":"Задние дельты стоя в наклоне","sets":[{"weight":"10","reps":"9"},{"weight":"10","reps":"9"},{"weight":"10","reps":"9"}]},{"name":"Обратное разведение в кроссовере наклон","sets":[{"weight":"9","reps":"9"},{"weight":"9","reps":"9"},{"weight":"9","reps":"9"}]},{"name":"Подъём гантелей перед собой стоя","sets":[{"weight":"6","reps":"9"},{"weight":"6","reps":"9"},{"weight":"6","reps":"9"}]},{"name":"Трицепс прямой блок","sets":[{"weight":"45","reps":"10"},{"weight":"45","reps":"10"},{"weight":"45","reps":"10"}]}]}
 ]
 
+SKIP_KEYWORDS = ['пресс','кор','планка','растяжка','разминка','стретчинг','экстензи','супинация','пронация','предплечь']
+
+def should_skip(name: str) -> bool:
+    n = name.lower()
+    return any(k in n for k in SKIP_KEYWORDS)
+
 # ─── Database ────────────────────────────────────────────────────────────────
 
 def init_db():
     conn = sqlite3.connect("workouts.db")
     c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS workouts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT NOT NULL,
-            data TEXT NOT NULL
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS rules (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            rule TEXT NOT NULL,
-            created_at TEXT NOT NULL
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS meta (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        )
-    """)
-    # Load initial history once
+    c.execute("CREATE TABLE IF NOT EXISTS workouts (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, data TEXT NOT NULL)")
+    c.execute("CREATE TABLE IF NOT EXISTS rules (id INTEGER PRIMARY KEY AUTOINCREMENT, rule TEXT NOT NULL, created_at TEXT NOT NULL)")
+    c.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     c.execute("SELECT value FROM meta WHERE key='history_loaded'")
     if not c.fetchone():
         for w in INITIAL_HISTORY:
-            c.execute("INSERT INTO workouts (date, data) VALUES (?, ?)",
-                      (w["date"], json.dumps(w["exercises"], ensure_ascii=False)))
+            c.execute("INSERT INTO workouts (date, data) VALUES (?, ?)", (w["date"], json.dumps(w["exercises"], ensure_ascii=False)))
         c.execute("INSERT INTO meta (key, value) VALUES ('history_loaded', '1')")
         logger.info(f"Loaded {len(INITIAL_HISTORY)} historical workouts")
-
-    # Default rules
     c.execute("SELECT COUNT(*) FROM rules")
     if c.fetchone()[0] == 0:
-        default_rules = [
-            "Не вносить в трекер упражнения на пресс и кор",
-            "Не вносить растяжки и разминку",
-            "Не вносить упражнения на предплечья (супинация, пронация)",
-        ]
-        for rule in default_rules:
-            c.execute("INSERT INTO rules (rule, created_at) VALUES (?, ?)",
-                      (rule, datetime.now().isoformat()))
+        for rule in ["Не вносить упражнения на пресс и кор", "Не вносить растяжки и разминку", "Не вносить упражнения на предплечья"]:
+            c.execute("INSERT INTO rules (rule, created_at) VALUES (?, ?)", (rule, datetime.now().isoformat()))
     conn.commit()
     conn.close()
 
 def save_workout(date: str, exercises: list):
     conn = sqlite3.connect("workouts.db")
     c = conn.cursor()
-    c.execute("INSERT INTO workouts (date, data) VALUES (?, ?)",
-              (date, json.dumps(exercises, ensure_ascii=False)))
+    c.execute("INSERT INTO workouts (date, data) VALUES (?, ?)", (date, json.dumps(exercises, ensure_ascii=False)))
     conn.commit()
     conn.close()
 
@@ -98,24 +76,6 @@ def get_all_workouts() -> list:
     rows = c.fetchall()
     conn.close()
     return [{"date": r[0], "exercises": json.loads(r[1])} for r in rows]
-
-def get_last_result(exercise_name: str):
-    workouts = get_all_workouts()
-    norm = exercise_name.lower().strip()
-    for w in reversed(workouts):
-        for ex in w["exercises"]:
-            if ex["name"].lower().strip() == norm:
-                sets = [s for s in ex["sets"] if s.get("weight") or s.get("reps")]
-                if sets:
-                    date_str = datetime.fromisoformat(w["date"]).strftime("%-d %b")
-                    sets_str = ", ".join(
-                        f"{s['weight']}кг×{s['reps']}" if s.get("weight") and s.get("reps")
-                        else f"{s['weight']}кг" if s.get("weight")
-                        else f"{s['reps']} повт"
-                        for s in sets
-                    )
-                    return f"{date_str}: {sets_str}"
-    return None
 
 def get_rules() -> list:
     conn = sqlite3.connect("workouts.db")
@@ -128,8 +88,7 @@ def get_rules() -> list:
 def add_rule(rule: str):
     conn = sqlite3.connect("workouts.db")
     c = conn.cursor()
-    c.execute("INSERT INTO rules (rule, created_at) VALUES (?, ?)",
-              (rule, datetime.now().isoformat()))
+    c.execute("INSERT INTO rules (rule, created_at) VALUES (?, ?)", (rule, datetime.now().isoformat()))
     conn.commit()
     conn.close()
 
@@ -140,35 +99,144 @@ def delete_rule(rule_id: int):
     conn.commit()
     conn.close()
 
+# ─── History lookup ───────────────────────────────────────────────────────────
+
+def get_exact_result(exercise_name: str):
+    """Exact match lookup."""
+    workouts = get_all_workouts()
+    norm = exercise_name.lower().strip()
+    for w in reversed(workouts):
+        for ex in w["exercises"]:
+            if ex["name"].lower().strip() == norm:
+                sets = [s for s in ex["sets"] if s.get("weight") or s.get("reps")]
+                if sets:
+                    date_str = datetime.fromisoformat(w["date"]).strftime("%-d %b")
+                    sets_str = ", ".join(f"{s.get('weight','?')}кг×{s.get('reps','?')}" for s in sets)
+                    return date_str, sets_str
+    return None, None
+
+def find_similar_exercise(exercise_name: str):
+    """Use AI to find the most similar exercise from history."""
+    workouts = get_all_workouts()
+    all_names = list({ex["name"] for w in workouts for ex in w["exercises"]})
+    if not all_names:
+        return None, None, None
+
+    response = client.messages.create(
+        model="claude-opus-4-5",
+        max_tokens=200,
+        messages=[{
+            "role": "user",
+            "content": f"""Упражнение: "{exercise_name}"
+
+Список упражнений из истории:
+{json.dumps(all_names, ensure_ascii=False)}
+
+Найди самое похожее упражнение из списка (по группе мышц и типу движения).
+Верни ТОЛЬКО JSON без markdown: {{"similar": "название из списка"}}
+Если ничего похожего нет — верни {{"similar": null}}"""
+        }]
+    )
+    text = response.content[0].text.strip().replace("```json","").replace("```","").strip()
+    result = json.loads(text)
+    similar_name = result.get("similar")
+    if not similar_name:
+        return None, None, None
+    date_str, sets_str = get_exact_result(similar_name)
+    return similar_name, date_str, sets_str
+
+def get_history_info(exercise_name: str) -> str:
+    """Get history string for an exercise, with fallback to similar."""
+    date_str, sets_str = get_exact_result(exercise_name)
+    if date_str:
+        return f"📅 {date_str}: {sets_str}"
+    # Try similar
+    similar_name, sim_date, sim_sets = find_similar_exercise(exercise_name)
+    if similar_name and sim_date:
+        return f"🔍 Похожее «{similar_name}»\n   {sim_date}: {sim_sets}"
+    return "🆕 Первый раз"
+
 # ─── Session state ────────────────────────────────────────────────────────────
 
 user_sessions = {}
 
 def get_session(user_id: int) -> dict:
     if user_id not in user_sessions:
-        user_sessions[user_id] = {"today_exercises": [], "pending_results": []}
+        user_sessions[user_id] = {
+            "today_exercises": [],
+            "results": [],
+            "current_idx": -1,
+            "date": None,
+            "mode": None  # "interactive" or None
+        }
     return user_sessions[user_id]
+
+def reset_session(user_id: int):
+    user_sessions[user_id] = {
+        "today_exercises": [],
+        "results": [],
+        "current_idx": -1,
+        "date": None,
+        "mode": None
+    }
+
+# ─── Interactive mode ─────────────────────────────────────────────────────────
+
+def format_exercise_prompt(ex: dict, idx: int, total: int) -> str:
+    hist = get_history_info(ex["name"])
+    return (
+        f"*{idx+1}/{total}. {ex['name']}*\n"
+        f"📋 {ex['sets']}×{ex['reps']} повт\n"
+        f"{hist}\n\n"
+        f"Введи вес (кг) или напиши «—» если без веса:"
+    )
+
+async def send_next_exercise(update: Update, session: dict):
+    exercises = session["today_exercises"]
+    idx = session["current_idx"]
+
+    if idx >= len(exercises):
+        # All done — save
+        valid = [r for r in session["results"] if r]
+        if valid:
+            save_workout(session["date"], valid)
+        text = "✅ *Тренировка сохранена!*\n\n"
+        for r in valid:
+            w = r["sets"][0].get("weight","?") if r["sets"] else "?"
+            reps = r["sets"][0].get("reps","?") if r["sets"] else "?"
+            text += f"• {r['name']}: {w}кг × {reps} повт\n"
+        text += "\nОтличная работа! 💪"
+        session["mode"] = None
+        session["current_idx"] = -1
+        await update.message.reply_text(text, parse_mode="Markdown", reply_markup=ReplyKeyboardRemove())
+        return
+
+    ex = exercises[idx]
+    msg = format_exercise_prompt(ex, idx, len(exercises))
+
+    # Quick reply buttons with suggested weight
+    _, sets_str = get_exact_result(ex["name"])
+    buttons = []
+    if sets_str:
+        # Extract weight from last result
+        try:
+            last_w = sets_str.split(",")[0].split("кг")[0].strip()
+            buttons.append([f"{last_w}"])
+        except:
+            pass
+    buttons.append(["—"])
+
+    markup = ReplyKeyboardMarkup(buttons, resize_keyboard=True, one_time_keyboard=True) if buttons else ReplyKeyboardRemove()
+    await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=markup)
 
 # ─── AI helpers ──────────────────────────────────────────────────────────────
 
-def build_system_prompt() -> str:
+def get_rules_text() -> str:
     rules = get_rules()
-    rules_text = "\n".join(f"- {r[1]}" for r in rules)
-    return f"""Ты — персональный трекер тренировок. Помогаешь вести журнал тренировок.
-
-ПРАВИЛА (всегда соблюдай):
-{rules_text}
-
-Ты умеешь:
-1. Читать программы тренировок со скриншотов
-2. Парсить результаты тренировок из свободного текста пользователя
-3. Отвечать на вопросы об истории тренировок
-
-Отвечай кратко и по делу. Используй русский язык."""
+    return "\n".join(f"- {r[1]}" for r in rules)
 
 def parse_program_from_image(image_base64: str, media_type: str) -> list:
-    rules = get_rules()
-    rules_text = "\n".join(f"- {r[1]}" for r in rules)
+    rules_text = get_rules_text()
     response = client.messages.create(
         model="claude-opus-4-5",
         max_tokens=1500,
@@ -178,73 +246,37 @@ def parse_program_from_image(image_base64: str, media_type: str) -> list:
                 {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": image_base64}},
                 {"type": "text", "text": f"""Это программа тренировки. Извлеки список упражнений.
 
-ПРАВИЛА — эти категории НЕ включать:
+НЕ включать:
 {rules_text}
 
 Верни ТОЛЬКО JSON без markdown:
-{{"exercises":[{{"number":1,"name":"Название упражнения","sets":3,"reps":"8-10"}}]}}
-
-Если количество подходов или повторений не указано, ставь sets:3, reps:"10"."""}
+{{"exercises":[{{"number":1,"name":"Название","sets":3,"reps":"10"}}]}}"""}
             ]
         }]
     )
-    text = response.content[0].text.strip().replace("```json", "").replace("```", "").strip()
-    return json.loads(text)["exercises"]
+    text = response.content[0].text.strip().replace("```json","").replace("```","").strip()
+    exercises = json.loads(text)["exercises"]
+    return [ex for ex in exercises if not should_skip(ex["name"])]
 
-def parse_results_from_text(user_text: str, today_exercises: list) -> list:
-    exercises_list = "\n".join(f"{ex['number']}. {ex['name']}" for ex in today_exercises)
-    response = client.messages.create(
-        model="claude-opus-4-5",
-        max_tokens=1500,
-        messages=[{
-            "role": "user",
-            "content": f"""Пользователь написал результаты тренировки в свободной форме.
-
-Программа тренировки сегодня:
-{exercises_list}
-
-Что написал пользователь:
-{user_text}
-
-Сопоставь результаты с упражнениями из программы. Название в результате может не совпадать точно — используй смысловое совпадение.
-
-Верни ТОЛЬКО JSON без markdown:
-{{"results":[{{"name":"точное название из программы","sets":[{{"weight":"40","reps":"10"}}]}}]}}
-
-Если вес не указан — weight:"", если повторения не указаны — reps:""."""
-        }]
-    )
-    text = response.content[0].text.strip().replace("```json", "").replace("```", "").strip()
-    return json.loads(text)["results"]
-
-def answer_question(user_text: str, history: list) -> str:
+def answer_question(user_text: str) -> str:
+    history = get_all_workouts()
     history_text = ""
     for w in history[-10:]:
         date_str = datetime.fromisoformat(w["date"]).strftime("%-d %b %Y")
         exes = []
         for ex in w["exercises"]:
-            sets_str = ", ".join(
-                f"{s.get('weight','?')}кг×{s.get('reps','?')}" for s in ex["sets"]
-                if s.get("weight") or s.get("reps")
-            )
+            sets_str = ", ".join(f"{s.get('weight','?')}кг×{s.get('reps','?')}" for s in ex["sets"] if s.get("weight") or s.get("reps"))
             if sets_str:
                 exes.append(f"  {ex['name']}: {sets_str}")
         if exes:
             history_text += f"\n{date_str}:\n" + "\n".join(exes)
 
+    rules_text = get_rules_text()
     response = client.messages.create(
         model="claude-opus-4-5",
-        max_tokens=800,
-        system=build_system_prompt(),
-        messages=[{
-            "role": "user",
-            "content": f"""История тренировок:
-{history_text or 'Пока нет записей'}
-
-Вопрос пользователя: {user_text}
-
-Ответь кратко и полезно."""
-        }]
+        max_tokens=600,
+        system=f"Ты трекер тренировок. Правила: {rules_text}. Отвечай кратко по-русски.",
+        messages=[{"role": "user", "content": f"История:\n{history_text or 'нет'}\n\nВопрос: {user_text}"}]
     )
     return response.content[0].text.strip()
 
@@ -258,38 +290,36 @@ def is_allowed(update: Update) -> bool:
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
         return
-    text = (
+    await update.message.reply_text(
         "👋 Привет! Я твой трекер тренировок.\n\n"
-        "Что умею:\n"
-        "📸 Пришли скриншот программы от тренера\n"
-        "💬 После тренировки напиши результаты в свободной форме\n"
-        "📊 /history — история тренировок\n"
-        "📋 /rules — правила (что не записывать)\n"
-        "❓ /help — подробная помощь\n\n"
-        "Начнём? Пришли скриншот программы от тренера!"
+        "📸 Пришли скриншот программы от тренера — начнём тренировку\n"
+        "📊 /history — история\n"
+        "📋 /rules — правила\n"
+        "❓ /help — помощь"
     )
-    await update.message.reply_text(text)
 
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
         return
-    text = (
+    await update.message.reply_text(
         "📖 *Как пользоваться:*\n\n"
-        "*1. Загрузка программы*\n"
-        "Пришли фото/скриншот программы от тренера\n\n"
-        "*2. Запись результатов*\n"
-        "После тренировки напиши в любом формате:\n"
-        "• _тяга 42кг 4х7_\n"
-        "• _блок к груди 60, подъём гантели 14кг_\n"
-        "• _1 - 42кг, 2 - 60кг, 3 - 55кг_\n\n"
-        "*3. Команды:*\n"
+        "1. Пришли скриншот программы от тренера\n"
+        "2. Бот покажет упражнения по одному с историей\n"
+        "3. Вводи вес — бот сохранит автоматически\n\n"
         "/history — последние тренировки\n"
         "/last [упражнение] — последний результат\n"
-        "/rules — текущие правила\n"
+        "/cancel — отменить текущую тренировку\n"
+        "/rules — правила\n"
         "/addrule [текст] — добавить правило\n"
-        "/delrule [номер] — удалить правило\n"
+        "/delrule [номер] — удалить правило",
+        parse_mode="Markdown"
     )
-    await update.message.reply_text(text, parse_mode="Markdown")
+
+async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update):
+        return
+    reset_session(update.effective_user.id)
+    await update.message.reply_text("❌ Тренировка отменена.", reply_markup=ReplyKeyboardRemove())
 
 async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
@@ -304,7 +334,7 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         names = [ex["name"] for ex in w["exercises"]]
         text += f"\n*{date_str}*\n" + "\n".join(f"  • {n}" for n in names[:4])
         if len(names) > 4:
-            text += f"\n  ...ещё {len(names)-4}"
+            text += f"\n  +ещё {len(names)-4}"
         text += "\n"
     await update.message.reply_text(text, parse_mode="Markdown")
 
@@ -312,34 +342,35 @@ async def cmd_last(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
         return
     if not context.args:
-        await update.message.reply_text("Напиши: /last тяга блок")
+        await update.message.reply_text("Напиши: /last тяга")
         return
     query = " ".join(context.args)
-    result = get_last_result(query)
-    if result:
-        await update.message.reply_text(f"*{query}*\n{result}", parse_mode="Markdown")
+    date_str, sets_str = get_exact_result(query)
+    if date_str:
+        await update.message.reply_text(f"*{query}*\n{date_str}: {sets_str}", parse_mode="Markdown")
     else:
-        await update.message.reply_text(f"Нет истории по «{query}»")
+        similar, sim_date, sim_sets = find_similar_exercise(query)
+        if similar:
+            await update.message.reply_text(f"Точного совпадения нет.\nПохожее: *{similar}*\n{sim_date}: {sim_sets}", parse_mode="Markdown")
+        else:
+            await update.message.reply_text(f"Нет истории по «{query}»")
 
 async def cmd_rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
         return
     rules = get_rules()
-    text = "📋 *Текущие правила:*\n\n"
-    for r in rules:
-        text += f"{r[0]}. {r[1]}\n"
-    text += "\n/addrule [текст] — добавить\n/delrule [номер] — удалить"
+    text = "📋 *Правила:*\n\n" + "\n".join(f"{r[0]}. {r[1]}" for r in rules)
+    text += "\n\n/addrule [текст] — добавить\n/delrule [номер] — удалить"
     await update.message.reply_text(text, parse_mode="Markdown")
 
 async def cmd_addrule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
         return
     if not context.args:
-        await update.message.reply_text("Напиши: /addrule Не записывать разминку на велосипеде")
+        await update.message.reply_text("Напиши: /addrule текст правила")
         return
-    rule = " ".join(context.args)
-    add_rule(rule)
-    await update.message.reply_text(f"✅ Правило добавлено:\n_{rule}_", parse_mode="Markdown")
+    add_rule(" ".join(context.args))
+    await update.message.reply_text("✅ Правило добавлено")
 
 async def cmd_delrule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
@@ -348,69 +379,79 @@ async def cmd_delrule(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Напиши: /delrule 3")
         return
     delete_rule(int(context.args[0]))
-    await update.message.reply_text(f"✅ Правило удалено")
+    await update.message.reply_text("✅ Правило удалено")
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
         return
-    await update.message.reply_text("📸 Читаю программу тренировки...")
+    await update.message.reply_text("📸 Читаю программу...")
     photo = update.message.photo[-1]
     file = await context.bot.get_file(photo.file_id)
     import aiohttp
-    async with aiohttp.ClientSession() as session:
-        async with session.get(file.file_path) as resp:
+    async with aiohttp.ClientSession() as session_http:
+        async with session_http.get(file.file_path) as resp:
             image_bytes = await resp.read()
     image_base64 = base64.standard_b64encode(image_bytes).decode("utf-8")
     try:
         exercises = parse_program_from_image(image_base64, "image/jpeg")
     except Exception as e:
         logger.error(f"Image parse error: {e}")
-        await update.message.reply_text("❌ Не удалось прочитать программу. Попробуй ещё раз.")
+        await update.message.reply_text("❌ Не удалось прочитать. Попробуй ещё раз.")
         return
-    session = get_session(update.effective_user.id)
+
+    uid = update.effective_user.id
+    reset_session(uid)
+    session = get_session(uid)
     session["today_exercises"] = exercises
+    session["results"] = [None] * len(exercises)
     session["date"] = datetime.now().isoformat()
-    text = f"✅ Программа загружена — {len(exercises)} упражнений\n\n"
-    for ex in exercises:
-        history = get_last_result(ex["name"])
-        hist_str = f"\n   ↳ Прошлый раз: {history}" if history else "\n   ↳ Первый раз"
-        text += f"*{ex['number']}. {ex['name']}*  {ex['sets']}×{ex['reps']}{hist_str}\n\n"
-    text += "💪 Удачи на тренировке!\nПосле — напиши результаты в любом формате."
-    await update.message.reply_text(text, parse_mode="Markdown")
+    session["current_idx"] = 0
+    session["mode"] = "interactive"
+
+    await update.message.reply_text(
+        f"✅ Загружено {len(exercises)} упражнений. Поехали!\n\n"
+        f"_(напиши /cancel чтобы отменить)_",
+        parse_mode="Markdown"
+    )
+    await send_next_exercise(update, session)
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
         return
-    user_text = update.message.text.strip()
-    session = get_session(update.effective_user.id)
-    if session.get("today_exercises"):
-        await update.message.reply_text("⏳ Разбираю результаты...")
-        try:
-            results = parse_results_from_text(user_text, session["today_exercises"])
-        except Exception as e:
-            logger.error(f"Results parse error: {e}")
-            await update.message.reply_text("❌ Не понял формат. Напиши например: _тяга 42кг, блок 60кг_", parse_mode="Markdown")
-            return
-        if not results:
-            history = get_all_workouts()
-            answer = answer_question(user_text, history)
-            await update.message.reply_text(answer)
-            return
-        date = session.get("date", datetime.now().isoformat())
-        save_workout(date, results)
-        session["today_exercises"] = []
-        text = "✅ *Тренировка сохранена!*\n\n"
-        for ex in results:
-            sets_str = " | ".join(
-                f"{s.get('weight','?')}кг×{s.get('reps','?')}" for s in ex["sets"]
-                if s.get("weight") or s.get("reps")
-            )
-            text += f"• {ex['name']}\n  {sets_str}\n"
-        await update.message.reply_text(text, parse_mode="Markdown")
-    else:
-        history = get_all_workouts()
-        answer = answer_question(user_text, history)
-        await update.message.reply_text(answer)
+    uid = update.effective_user.id
+    session = get_session(uid)
+    text = update.message.text.strip()
+
+    # Interactive mode — collecting weights
+    if session.get("mode") == "interactive" and session["current_idx"] >= 0:
+        idx = session["current_idx"]
+        exercises = session["today_exercises"]
+        ex = exercises[idx]
+
+        # Parse weight
+        if text == "—" or text.lower() == "-":
+            weight = ""
+        else:
+            try:
+                weight = str(float(text.replace(",", ".")))
+                if weight.endswith(".0"):
+                    weight = weight[:-2]
+            except:
+                await update.message.reply_text("Введи число (например 42) или «—» если без веса:")
+                return
+
+        session["results"][idx] = {
+            "name": ex["name"],
+            "sets": [{"weight": weight, "reps": ex.get("reps", "10")}]
+        }
+
+        session["current_idx"] += 1
+        await send_next_exercise(update, session)
+        return
+
+    # Not in interactive mode — answer questions
+    answer = answer_question(text)
+    await update.message.reply_text(answer)
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
@@ -419,6 +460,7 @@ def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
+    app.add_handler(CommandHandler("cancel", cmd_cancel))
     app.add_handler(CommandHandler("history", cmd_history))
     app.add_handler(CommandHandler("last", cmd_last))
     app.add_handler(CommandHandler("rules", cmd_rules))
