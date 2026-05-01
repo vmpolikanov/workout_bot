@@ -68,6 +68,52 @@ def write_workout_to_sheet(date: str, exercises: list):
     except Exception as e:
         logger.error(f"Sheet write error: {e}")
 
+def import_from_sheet():
+    """Read all data from Google Sheets and save to local DB."""
+    try:
+        sheet = get_sheet()
+        if not sheet:
+            return 0
+        rows = sheet.get_all_values()
+        if len(rows) < 2:
+            return 0
+        
+        conn = sqlite3.connect("workouts.db")
+        c = conn.cursor()
+        c.execute("DELETE FROM workouts")
+        
+        # Group rows by date
+        from collections import defaultdict
+        by_date = defaultdict(list)
+        for row in rows[1:]:  # skip header
+            if len(row) >= 5:
+                date_raw, name, sets_count, reps, weight = row[0], row[1], row[2], row[3], row[4]
+                by_date[date_raw].append({"name": name, "sets_count": sets_count, "reps": reps, "weight": weight})
+        
+        # Convert to workout format
+        imported = 0
+        for date_str, exercises in by_date.items():
+            ex_list = []
+            for ex in exercises:
+                try:
+                    n = int(ex["sets_count"])
+                except:
+                    n = 1
+                sets = [{"weight": ex["weight"], "reps": ex["reps"]}] * n
+                ex_list.append({"name": ex["name"], "sets": sets})
+            # Use date_str as-is (it's already formatted like "14 янв")
+            # We need ISO format for storage — approximate it
+            c.execute("INSERT INTO workouts (date, data) VALUES (?, ?)",
+                      (date_str, json.dumps(ex_list, ensure_ascii=False)))
+            imported += 1
+        
+        conn.commit()
+        conn.close()
+        return imported
+    except Exception as e:
+        logger.error(f"Import from sheet error: {e}")
+        return 0
+
 def export_history_to_sheet():
     try:
         sheet = get_sheet()
@@ -508,6 +554,16 @@ def is_allowed(update: Update) -> bool:
         return True
     return update.effective_user.id == ALLOWED_USER_ID
 
+async def cmd_importsheet(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update):
+        return
+    await update.message.reply_text("⏳ Читаю данные из Google Sheets...")
+    count = import_from_sheet()
+    if count:
+        await update.message.reply_text(f"✅ Импортировано {count} тренировок из таблицы!")
+    else:
+        await update.message.reply_text("❌ Не удалось импортировать. Проверь таблицу.")
+
 async def cmd_exportsheet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
         return
@@ -688,9 +744,19 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     init_db()
+    # Auto-restore from Google Sheets if local DB is empty
+    conn = sqlite3.connect("workouts.db")
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM workouts")
+    count = c.fetchone()[0]
+    conn.close()
+    if count == 0:
+        logger.info("Local DB empty, restoring from Google Sheets...")
+        import_from_sheet()
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("exportsheet", cmd_exportsheet))
+    app.add_handler(CommandHandler("importsheet", cmd_importsheet))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(CommandHandler("cancel", cmd_cancel))
     app.add_handler(CommandHandler("history", cmd_history))
