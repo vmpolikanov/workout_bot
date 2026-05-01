@@ -21,18 +21,112 @@ ALLOWED_USER_ID = int(os.environ.get("ALLOWED_USER_ID", "0"))
 client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
 INITIAL_HISTORY = [
-  {"date":"2026-01-14T10:00:00","exercises":[{"name":"Разгибание ног сидя статика","sets":[{"weight":"54","reps":"30"},{"weight":"54","reps":"30"},{"weight":"54","reps":"30"}]},{"name":"Разгибание ног сидя","sets":[{"weight":"54","reps":"12"},{"weight":"54","reps":"12"},{"weight":"54","reps":"12"}]},{"name":"Сгибание ног лёжа","sets":[{"weight":"","reps":"12"},{"weight":"","reps":"12"},{"weight":"","reps":"12"}]},{"name":"Приседания со штангой","sets":[{"weight":"25","reps":"15"},{"weight":"25","reps":"12"},{"weight":"25","reps":"10"},{"weight":"25","reps":"8"}]},{"name":"Бабочка тренажёр сведение рук","sets":[{"weight":"27","reps":"10"},{"weight":"27","reps":"10"},{"weight":"27","reps":"10"},{"weight":"27","reps":"10"}]},{"name":"Жим штанги узкий хват","sets":[{"weight":"15","reps":"12"},{"weight":"15","reps":"10"},{"weight":"15","reps":"8"},{"weight":"15","reps":"8"}]},{"name":"Трицепс верёвочная рукоять","sets":[{"weight":"18","reps":"8"},{"weight":"18","reps":"8"},{"weight":"18","reps":"8"},{"weight":"18","reps":"8"},{"weight":"18","reps":"8"}]}]},
-  {"date":"2026-01-18T10:00:00","exercises":[{"name":"Тяга штанги в наклоне обратный хват","sets":[{"weight":"20","reps":"10"},{"weight":"20","reps":"10"},{"weight":"20","reps":"10"},{"weight":"20","reps":"10"}]},{"name":"Тяга блок к груди поперечный хват","sets":[{"weight":"57","reps":"10"},{"weight":"57","reps":"10"},{"weight":"57","reps":"10"},{"weight":"57","reps":"10"}]},{"name":"Тяга гантели в наклоне к поясу","sets":[{"weight":"18","reps":"10"},{"weight":"18","reps":"10"},{"weight":"18","reps":"10"}]},{"name":"Тяга z гриф к поясу двумя руками сверху","sets":[{"weight":"36","reps":"10"},{"weight":"36","reps":"10"},{"weight":"36","reps":"10"}]},{"name":"Бицепс штанга в смите стоя","sets":[{"weight":"2.5","reps":"10"},{"weight":"2.5","reps":"10"},{"weight":"2.5","reps":"10"},{"weight":"2.5","reps":"10"},{"weight":"2.5","reps":"10"}]},{"name":"Стоя мягкий блок молоток","sets":[{"weight":"8","reps":"10"},{"weight":"8","reps":"10"},{"weight":"8","reps":"10"},{"weight":"8","reps":"10"},{"weight":"8","reps":"10"}]}]},
-  {"date":"2026-01-20T10:00:00","exercises":[{"name":"Жим штанги лёжа широкий хват","sets":[{"weight":"20","reps":"12"},{"weight":"25","reps":"10"},{"weight":"30","reps":"7"},{"weight":"35","reps":"3"},{"weight":"35","reps":"3"}]},{"name":"Бабочка тренажёр сведение рук","sets":[{"weight":"31","reps":"10"},{"weight":"31","reps":"10"},{"weight":"31","reps":"8"},{"weight":"31","reps":"7"}]},{"name":"Скоростной жим лёжа средний хват","sets":[{"weight":"15","reps":"12"},{"weight":"20","reps":"9"},{"weight":"20","reps":"7"}]},{"name":"Трицепс с/сет мягкий блок стоя","sets":[{"weight":"22","reps":"8"},{"weight":"22","reps":"8"},{"weight":"22","reps":"8"}]},{"name":"Бицепс штанга стоя прямой хват","sets":[{"weight":"25","reps":"6"},{"weight":"25","reps":"6"},{"weight":"25","reps":"6"}]}]},
-  {"date":"2026-01-21T12:00:00","exercises":[{"name":"Подтягивания имитация тяга сверху","sets":[{"weight":"54","reps":"10"},{"weight":"54","reps":"10"},{"weight":"54","reps":"6"},{"weight":"54","reps":"5"}]},{"name":"Тяга в наклоне z хват треугольник","sets":[{"weight":"37.5","reps":"10"},{"weight":"37.5","reps":"8"},{"weight":"37.5","reps":"6"},{"weight":"37.5","reps":"4"}]},{"name":"Тяга одной рукой сидя к поясу","sets":[{"weight":"18","reps":"10"},{"weight":"18","reps":"10"},{"weight":"18","reps":"10"},{"weight":"18","reps":"10"}]},{"name":"Гантели в наклоне на широчайшую","sets":[{"weight":"18","reps":"10"},{"weight":"18","reps":"10"},{"weight":"18","reps":"10"}]},{"name":"Опускание блока z гриф сверху к поясу","sets":[{"weight":"31","reps":"10"},{"weight":"31","reps":"10"},{"weight":"31","reps":"10"}]},{"name":"Бицепс молот гантели","sets":[{"weight":"5","reps":"10"},{"weight":"5","reps":"10"},{"weight":"5","reps":"10"}]}]},
-  {"date":"2026-01-23T11:00:00","exercises":[{"name":"Жим лёжа широкий хват пауза","sets":[{"weight":"65","reps":"4"},{"weight":"65","reps":"4"},{"weight":"65","reps":"4"},{"weight":"65","reps":"4"},{"weight":"65","reps":"4"}]},{"name":"Жим лёжа средний хват ноги на лавке","sets":[{"weight":"40","reps":"10"},{"weight":"40","reps":"10"},{"weight":"40","reps":"10"},{"weight":"40","reps":"10"}]},{"name":"Бабочка тренажёр сведение рук","sets":[{"weight":"36","reps":"10"},{"weight":"36","reps":"10"},{"weight":"36","reps":"10"},{"weight":"36","reps":"10"}]},{"name":"Трицепс жим штанги узким хватом","sets":[{"weight":"30","reps":"15"},{"weight":"30","reps":"12"},{"weight":"30","reps":"10"},{"weight":"30","reps":"8"}]},{"name":"Трицепс верёвочная рукоять оба варианта","sets":[{"weight":"22","reps":"8"},{"weight":"22","reps":"8"},{"weight":"22","reps":"8"},{"weight":"22","reps":"8"},{"weight":"22","reps":"8"}]}]},
-  {"date":"2026-01-27T11:00:00","exercises":[{"name":"Разгибание ног сидя статика","sets":[{"weight":"58","reps":"30"},{"weight":"58","reps":"30"},{"weight":"58","reps":"30"}]},{"name":"Разгибание ног сидя","sets":[{"weight":"45","reps":"20"},{"weight":"45","reps":"20"},{"weight":"45","reps":"20"}]},{"name":"Сгибание ног лёжа","sets":[{"weight":"31","reps":"15"},{"weight":"31","reps":"15"},{"weight":"31","reps":"15"}]},{"name":"Приседания со штангой узкая постановка","sets":[{"weight":"50","reps":"8"},{"weight":"50","reps":"8"},{"weight":"50","reps":"8"},{"weight":"50","reps":"8"}]},{"name":"Жим гантелей сидя вверх плечи","sets":[{"weight":"15","reps":"10"},{"weight":"15","reps":"10"},{"weight":"15","reps":"10"},{"weight":"15","reps":"10"}]},{"name":"Разводка гантелей стоя плечи","sets":[{"weight":"8","reps":"8"},{"weight":"8","reps":"8"},{"weight":"8","reps":"8"},{"weight":"8","reps":"8"}]},{"name":"Трицепс косичка с разведением в стороны стоя","sets":[{"weight":"31","reps":"10"},{"weight":"31","reps":"10"},{"weight":"31","reps":"10"}]}]},
-  {"date":"2026-01-28T13:00:00","exercises":[{"name":"Жим гантелей сидя вверх плечи","sets":[{"weight":"18","reps":"8"},{"weight":"18","reps":"8"},{"weight":"18","reps":"8"},{"weight":"18","reps":"8"}]},{"name":"Задние дельты лёжа скамья 30°","sets":[{"weight":"8","reps":"8"},{"weight":"8","reps":"8"},{"weight":"8","reps":"8"},{"weight":"8","reps":"8"}]},{"name":"Разводка гантелей сидя в стороны","sets":[{"weight":"8","reps":"10"},{"weight":"8","reps":"10"},{"weight":"8","reps":"10"}]},{"name":"Подъём гантелей перед собой стоя","sets":[{"weight":"6","reps":"10"},{"weight":"6","reps":"10"},{"weight":"6","reps":"10"}]}]},
-  {"date":"2026-01-29T13:49:00","exercises":[{"name":"Подтягивания имитация тяга сверху","sets":[{"weight":"68","reps":"6"},{"weight":"68","reps":"6"},{"weight":"68","reps":"6"},{"weight":"68","reps":"6"}]},{"name":"Тяга блока сидя поперечный хват","sets":[{"weight":"40","reps":"10"},{"weight":"40","reps":"10"},{"weight":"40","reps":"10"},{"weight":"40","reps":"10"}]},{"name":"Тяга блока одной рукой сидя грудью в спинку","sets":[{"weight":"31","reps":"10"},{"weight":"31","reps":"10"},{"weight":"31","reps":"10"},{"weight":"31","reps":"10"}]},{"name":"Тяга одной рукой в наклоне с упором на скамью","sets":[{"weight":"18","reps":"10"},{"weight":"18","reps":"10"},{"weight":"18","reps":"10"}]},{"name":"Тяга блок треугольная рукоять к груди","sets":[{"weight":"45","reps":"10"},{"weight":"45","reps":"10"},{"weight":"45","reps":"10"}]},{"name":"Бицепс скотт молот с/сет","sets":[{"weight":"13","reps":"10"},{"weight":"13","reps":"10"},{"weight":"13","reps":"10"}]},{"name":"Бицепс мягкий блок стоя","sets":[{"weight":"13","reps":"15"},{"weight":"13","reps":"15"},{"weight":"13","reps":"15"},{"weight":"13","reps":"15"}]}]},
-  {"date":"2026-02-02T13:00:00","exercises":[{"name":"Жим лёжа лавка 30° средний хват","sets":[{"weight":"50","reps":"12"},{"weight":"50","reps":"10"},{"weight":"50","reps":"5"},{"weight":"50","reps":"5"},{"weight":"50","reps":"5"}]},{"name":"Скоростной жим лёжа горизонтальная лавка","sets":[{"weight":"40","reps":"12"},{"weight":"40","reps":"12"},{"weight":"40","reps":"12"}]},{"name":"Жим гантелей лёжа горизонтальный сжатые","sets":[{"weight":"18","reps":"9"},{"weight":"18","reps":"9"},{"weight":"18","reps":"9"}]},{"name":"Трицепс сидя лавка 60° гантели из-за головы","sets":[{"weight":"8","reps":"12"},{"weight":"8","reps":"12"},{"weight":"8","reps":"12"},{"weight":"8","reps":"12"}]},{"name":"Трицепс с/сет мягкий блок стоя","sets":[{"weight":"22","reps":"10"},{"weight":"22","reps":"10"},{"weight":"22","reps":"10"},{"weight":"22","reps":"10"}]},{"name":"Бицепс стоя штанга z гриф","sets":[{"weight":"27.5","reps":"10"},{"weight":"27.5","reps":"10"},{"weight":"27.5","reps":"10"},{"weight":"27.5","reps":"10"}]}]},
-  {"date":"2026-02-07T13:52:00","exercises":[{"name":"Подтягивания имитация тяга сверху","sets":[{"weight":"68","reps":"7"},{"weight":"68","reps":"7"},{"weight":"68","reps":"7"},{"weight":"68","reps":"7"}]},{"name":"Тяга блока к груди сидя узкий хват","sets":[{"weight":"58","reps":"10"},{"weight":"58","reps":"10"},{"weight":"58","reps":"10"},{"weight":"58","reps":"10"}]},{"name":"Тяга блока одной рукой сидя с доворотом","sets":[{"weight":"28","reps":"7"},{"weight":"28","reps":"7"},{"weight":"28","reps":"7"},{"weight":"28","reps":"7"}]},{"name":"Тяга гантели одной рукой в наклоне с упором","sets":[{"weight":"22","reps":"8"},{"weight":"22","reps":"8"},{"weight":"22","reps":"8"}]},{"name":"Бицепс штанга стоя молот с/сет","sets":[{"weight":"25","reps":"6"},{"weight":"25","reps":"6"},{"weight":"25","reps":"6"}]},{"name":"Бицепс z гриф мягкий блок стоя","sets":[{"weight":"27","reps":"5"},{"weight":"27","reps":"5"},{"weight":"27","reps":"5"},{"weight":"27","reps":"5"},{"weight":"27","reps":"5"}]}]},
-  {"date":"2026-02-11T11:32:00","exercises":[{"name":"Разгибание ног сидя статика","sets":[{"weight":"63","reps":"30"},{"weight":"63","reps":"30"}]},{"name":"Разгибание ног сидя","sets":[{"weight":"54","reps":"12"},{"weight":"54","reps":"12"},{"weight":"54","reps":"12"}]},{"name":"Сгибание ног лёжа","sets":[{"weight":"36","reps":"12"},{"weight":"36","reps":"12"},{"weight":"36","reps":"12"}]},{"name":"Приседания со штангой широкая постановка","sets":[{"weight":"60","reps":"6"},{"weight":"60","reps":"6"},{"weight":"60","reps":"6"},{"weight":"60","reps":"6"},{"weight":"60","reps":"6"}]},{"name":"Жим гантелей сидя вверх плечи","sets":[{"weight":"22","reps":"10"},{"weight":"22","reps":"10"},{"weight":"22","reps":"10"},{"weight":"22","reps":"10"}]},{"name":"Трицепс мягкий блок косичка разведение","sets":[{"weight":"40","reps":"10"},{"weight":"40","reps":"10"},{"weight":"40","reps":"10"}]}]},
-  {"date":"2026-02-13T14:22:00","exercises":[{"name":"Румынская тяга со штангой","sets":[{"weight":"60","reps":"10"},{"weight":"60","reps":"10"},{"weight":"60","reps":"10"},{"weight":"60","reps":"10"},{"weight":"60","reps":"10"}]},{"name":"Жим гантелей сидя вверх плечи","sets":[{"weight":"22","reps":"8"},{"weight":"22","reps":"8"},{"weight":"22","reps":"8"},{"weight":"22","reps":"8"}]},{"name":"Задние дельты стоя в наклоне","sets":[{"weight":"10","reps":"9"},{"weight":"10","reps":"9"},{"weight":"10","reps":"9"}]},{"name":"Обратное разведение в кроссовере наклон","sets":[{"weight":"9","reps":"9"},{"weight":"9","reps":"9"},{"weight":"9","reps":"9"}]},{"name":"Подъём гантелей перед собой стоя","sets":[{"weight":"6","reps":"9"},{"weight":"6","reps":"9"},{"weight":"6","reps":"9"}]},{"name":"Трицепс прямой блок","sets":[{"weight":"45","reps":"10"},{"weight":"45","reps":"10"},{"weight":"45","reps":"10"}]}]}
+  {"date":"2026-01-14T10:00:00","exercises":[
+    {"name":"Разгибание ног сидя статика","sets":[{"weight":"54","reps":"30"},{"weight":"54","reps":"30"},{"weight":"54","reps":"30"}]},
+    {"name":"Разгибание ног сидя","sets":[{"weight":"54","reps":"12"},{"weight":"54","reps":"12"},{"weight":"54","reps":"12"}]},
+    {"name":"Сгибание ног лёжа","sets":[{"weight":"","reps":"12"},{"weight":"","reps":"12"},{"weight":"","reps":"12"}]},
+    {"name":"Приседания со штангой","sets":[{"weight":"25","reps":"15"},{"weight":"25","reps":"12"},{"weight":"25","reps":"10"},{"weight":"25","reps":"8"}]},
+    {"name":"Жим гантелей лёжа 60°","sets":[{"weight":"18","reps":"10"},{"weight":"18","reps":"10"},{"weight":"18","reps":"10"}]},
+    {"name":"Бабочка на грудные","sets":[{"weight":"27","reps":"10"},{"weight":"27","reps":"10"},{"weight":"27","reps":"10"},{"weight":"27","reps":"10"}]},
+    {"name":"Жим штанги узкий хват","sets":[{"weight":"15","reps":"12"},{"weight":"15","reps":"10"},{"weight":"15","reps":"8"},{"weight":"15","reps":"8"}]},
+    {"name":"Трицепс верёвочная рукоять","sets":[{"weight":"18","reps":"8"},{"weight":"18","reps":"8"},{"weight":"18","reps":"8"},{"weight":"18","reps":"8"},{"weight":"18","reps":"8"}]}
+  ]},
+  {"date":"2026-01-18T10:00:00","exercises":[
+    {"name":"Тяга в наклоне обратный хват","sets":[{"weight":"20","reps":"10"},{"weight":"20","reps":"10"},{"weight":"20","reps":"10"},{"weight":"20","reps":"10"}]},
+    {"name":"Тяга блок к груди поперечный хват","sets":[{"weight":"57","reps":"10"},{"weight":"57","reps":"10"},{"weight":"57","reps":"10"},{"weight":"57","reps":"10"}]},
+    {"name":"Тяга гантели в наклоне к поясу","sets":[{"weight":"18","reps":"10"},{"weight":"18","reps":"10"},{"weight":"18","reps":"10"}]},
+    {"name":"Тяга з гриф к поясу двумя руками","sets":[{"weight":"36","reps":"10"},{"weight":"36","reps":"10"},{"weight":"36","reps":"10"}]},
+    {"name":"Бицепс штанга в смите стоя","sets":[{"weight":"2.5","reps":"10"},{"weight":"2.5","reps":"10"},{"weight":"2.5","reps":"10"},{"weight":"2.5","reps":"10"},{"weight":"2.5","reps":"10"}]},
+    {"name":"Молот с гантелями","sets":[{"weight":"8","reps":"10"},{"weight":"8","reps":"10"},{"weight":"8","reps":"10"},{"weight":"8","reps":"10"},{"weight":"8","reps":"10"}]}
+  ]},
+  {"date":"2026-01-20T10:00:00","exercises":[
+    {"name":"Жим штанги лёжа широкий хват","sets":[{"weight":"20","reps":"12"},{"weight":"25","reps":"10"},{"weight":"30","reps":"7"},{"weight":"35","reps":"3"},{"weight":"35","reps":"3"}]},
+    {"name":"Бабочка на грудные","sets":[{"weight":"31","reps":"10"},{"weight":"31","reps":"10"},{"weight":"31","reps":"8"},{"weight":"31","reps":"7"}]},
+    {"name":"Скоростной жим лёжа средний хват","sets":[{"weight":"15","reps":"12"},{"weight":"20","reps":"9"},{"weight":"20","reps":"7"}]},
+    {"name":"Жим гантелей из-за головы трицепс","sets":[{"weight":"10","reps":"10"},{"weight":"10","reps":"9"},{"weight":"10","reps":"6"},{"weight":"10","reps":"5"}]},
+    {"name":"Трицепс с/сет мягкая рукоять","sets":[{"weight":"22","reps":"8"},{"weight":"22","reps":"8"},{"weight":"22","reps":"8"}]},
+    {"name":"Бицепс сидя з гриф с колен","sets":[{"weight":"","reps":"5"},{"weight":"","reps":"5"},{"weight":"","reps":"5"},{"weight":"","reps":"5"},{"weight":"","reps":"5"}]},
+    {"name":"Бицепс штанга стоя прямой хват","sets":[{"weight":"25","reps":"6"},{"weight":"25","reps":"6"},{"weight":"25","reps":"6"}]}
+  ]},
+  {"date":"2026-01-21T12:00:00","exercises":[
+    {"name":"Тяга сверху имитация подтягиваний","sets":[{"weight":"54","reps":"10"},{"weight":"54","reps":"10"},{"weight":"54","reps":"6"},{"weight":"54","reps":"5"}]},
+    {"name":"Тяга в наклоне з хват треугольник","sets":[{"weight":"37.5","reps":"10"},{"weight":"37.5","reps":"8"},{"weight":"37.5","reps":"6"},{"weight":"37.5","reps":"4"}]},
+    {"name":"Тяга одной рукой сидя к поясу","sets":[{"weight":"18","reps":"10"},{"weight":"18","reps":"10"},{"weight":"18","reps":"10"},{"weight":"18","reps":"10"}]},
+    {"name":"Тяга гантели в наклоне на широчайшую","sets":[{"weight":"18","reps":"10"},{"weight":"18","reps":"10"},{"weight":"18","reps":"10"}]},
+    {"name":"Опускание блока з гриф к поясу","sets":[{"weight":"31","reps":"10"},{"weight":"31","reps":"10"},{"weight":"31","reps":"10"}]},
+    {"name":"Бицепс в смите стоя","sets":[{"weight":"5","reps":"10"},{"weight":"5","reps":"10"},{"weight":"5","reps":"10"}]},
+    {"name":"Молот с гантелями","sets":[{"weight":"5","reps":"10"},{"weight":"5","reps":"10"},{"weight":"5","reps":"10"}]}
+  ]},
+  {"date":"2026-01-23T11:00:00","exercises":[
+    {"name":"Жим штанги лёжа широкий хват пауза","sets":[{"weight":"65","reps":"4"},{"weight":"65","reps":"4"},{"weight":"65","reps":"4"},{"weight":"65","reps":"4"},{"weight":"65","reps":"4"}]},
+    {"name":"Жим лёжа ноги на лавке средний хват","sets":[{"weight":"40","reps":"10"},{"weight":"40","reps":"10"},{"weight":"40","reps":"10"},{"weight":"40","reps":"10"}]},
+    {"name":"Бабочка на грудные","sets":[{"weight":"36","reps":"10"},{"weight":"36","reps":"10"},{"weight":"36","reps":"10"},{"weight":"36","reps":"10"}]},
+    {"name":"Трицепс жим штанги узким хватом","sets":[{"weight":"30","reps":"15"},{"weight":"30","reps":"12"},{"weight":"30","reps":"10"},{"weight":"30","reps":"8"}]},
+    {"name":"Трицепс жим гантелей лёжа","sets":[{"weight":"9","reps":"12"},{"weight":"9","reps":"12"},{"weight":"9","reps":"12"},{"weight":"9","reps":"12"}]},
+    {"name":"Трицепс верёвочная рукоять","sets":[{"weight":"22","reps":"8"},{"weight":"22","reps":"8"},{"weight":"22","reps":"8"},{"weight":"22","reps":"8"},{"weight":"22","reps":"8"}]}
+  ]},
+  {"date":"2026-01-27T11:00:00","exercises":[
+    {"name":"Разгибание ног сидя статика","sets":[{"weight":"58","reps":"30"},{"weight":"58","reps":"30"},{"weight":"58","reps":"30"}]},
+    {"name":"Разгибание ног сидя","sets":[{"weight":"45","reps":"20"},{"weight":"45","reps":"20"},{"weight":"45","reps":"20"}]},
+    {"name":"Сгибание ног лёжа","sets":[{"weight":"31","reps":"15"},{"weight":"31","reps":"15"},{"weight":"31","reps":"15"}]},
+    {"name":"Приседания со штангой узкая постановка","sets":[{"weight":"50","reps":"8"},{"weight":"50","reps":"8"},{"weight":"50","reps":"8"},{"weight":"50","reps":"8"}]},
+    {"name":"Приводящие ног в тренажёре","sets":[{"weight":"49","reps":"10"},{"weight":"49","reps":"10"},{"weight":"49","reps":"10"}]},
+    {"name":"Жим гантелей сидя вверх плечи","sets":[{"weight":"15","reps":"10"},{"weight":"15","reps":"10"},{"weight":"15","reps":"10"},{"weight":"15","reps":"10"}]},
+    {"name":"Разводка гантелей стоя плечи","sets":[{"weight":"8","reps":"8"},{"weight":"8","reps":"8"},{"weight":"8","reps":"8"},{"weight":"8","reps":"8"}]},
+    {"name":"Трицепс жим гантелей лёжа сведены","sets":[{"weight":"12","reps":"10"},{"weight":"12","reps":"10"},{"weight":"12","reps":"10"}]},
+    {"name":"Трицепс косичка разведение в стороны стоя","sets":[{"weight":"31","reps":"10"},{"weight":"31","reps":"10"},{"weight":"31","reps":"10"}]}
+  ]},
+  {"date":"2026-01-28T13:00:00","exercises":[
+    {"name":"Жим гантелей сидя вверх плечи","sets":[{"weight":"18","reps":"8"},{"weight":"18","reps":"8"},{"weight":"18","reps":"8"},{"weight":"18","reps":"8"}]},
+    {"name":"Задние дельты лёжа скамья 30°","sets":[{"weight":"8","reps":"8"},{"weight":"8","reps":"8"},{"weight":"8","reps":"8"},{"weight":"8","reps":"8"}]},
+    {"name":"Разводка гантелей сидя в стороны","sets":[{"weight":"8","reps":"10"},{"weight":"8","reps":"10"},{"weight":"8","reps":"10"}]},
+    {"name":"Подъём гантелей перед собой стоя","sets":[{"weight":"6","reps":"10"},{"weight":"6","reps":"10"},{"weight":"6","reps":"10"}]}
+  ]},
+  {"date":"2026-01-29T13:49:00","exercises":[
+    {"name":"Тяга сверху имитация подтягиваний","sets":[{"weight":"68","reps":"6"},{"weight":"68","reps":"6"},{"weight":"68","reps":"6"},{"weight":"68","reps":"6"}]},
+    {"name":"Тяга блока сидя поперечный хват","sets":[{"weight":"40","reps":"10"},{"weight":"40","reps":"10"},{"weight":"40","reps":"10"},{"weight":"40","reps":"10"}]},
+    {"name":"Тяга блока одной рукой сидя грудью в спинку","sets":[{"weight":"31","reps":"10"},{"weight":"31","reps":"10"},{"weight":"31","reps":"10"},{"weight":"31","reps":"10"}]},
+    {"name":"Тяга гантели одной рукой в наклоне с упором","sets":[{"weight":"18","reps":"10"},{"weight":"18","reps":"10"},{"weight":"18","reps":"10"}]},
+    {"name":"Тяга блок треугольная рукоять к груди","sets":[{"weight":"45","reps":"10"},{"weight":"45","reps":"10"},{"weight":"45","reps":"10"}]},
+    {"name":"Бицепс скотт молот с/сет","sets":[{"weight":"13","reps":"10"},{"weight":"13","reps":"10"},{"weight":"13","reps":"10"}]},
+    {"name":"Бицепс мягкий блок стоя","sets":[{"weight":"13","reps":"15"},{"weight":"13","reps":"15"},{"weight":"13","reps":"15"},{"weight":"13","reps":"15"}]}
+  ]},
+  {"date":"2026-02-02T13:00:00","exercises":[
+    {"name":"Жим лёжа лавка 30° средний хват","sets":[{"weight":"50","reps":"12"},{"weight":"50","reps":"10"},{"weight":"50","reps":"5"},{"weight":"50","reps":"5"},{"weight":"50","reps":"5"}]},
+    {"name":"Скоростной жим лёжа горизонтальная лавка","sets":[{"weight":"40","reps":"12"},{"weight":"40","reps":"12"},{"weight":"40","reps":"12"}]},
+    {"name":"Жим гантелей лёжа горизонтальный сжатые","sets":[{"weight":"18","reps":"9"},{"weight":"18","reps":"9"},{"weight":"18","reps":"9"}]},
+    {"name":"Трицепс гантели из-за головы сидя","sets":[{"weight":"8","reps":"12"},{"weight":"8","reps":"12"},{"weight":"8","reps":"12"},{"weight":"8","reps":"12"}]},
+    {"name":"Трицепс с/сет мягкая рукоять","sets":[{"weight":"22","reps":"10"},{"weight":"22","reps":"10"},{"weight":"22","reps":"10"},{"weight":"22","reps":"10"}]},
+    {"name":"Бицепс штанга з гриф стоя","sets":[{"weight":"27.5","reps":"10"},{"weight":"27.5","reps":"10"},{"weight":"27.5","reps":"10"},{"weight":"27.5","reps":"10"}]}
+  ]},
+  {"date":"2026-02-07T13:52:00","exercises":[
+    {"name":"Тяга сверху имитация подтягиваний","sets":[{"weight":"68","reps":"7"},{"weight":"68","reps":"7"},{"weight":"68","reps":"7"},{"weight":"68","reps":"7"}]},
+    {"name":"Тяга блока к груди сидя узкий хват","sets":[{"weight":"58","reps":"10"},{"weight":"58","reps":"10"},{"weight":"58","reps":"10"},{"weight":"58","reps":"10"}]},
+    {"name":"Тяга блока одной рукой сидя с доворотом","sets":[{"weight":"28","reps":"7"},{"weight":"28","reps":"7"},{"weight":"28","reps":"7"},{"weight":"28","reps":"7"}]},
+    {"name":"Тяга гантели одной рукой в наклоне с упором","sets":[{"weight":"22","reps":"8"},{"weight":"22","reps":"8"},{"weight":"22","reps":"8"}]},
+    {"name":"Бицепс штанга стоя молот с/сет","sets":[{"weight":"25","reps":"6"},{"weight":"25","reps":"6"},{"weight":"25","reps":"6"}]},
+    {"name":"Бицепс з гриф мягкий блок стоя","sets":[{"weight":"27","reps":"5"},{"weight":"27","reps":"5"},{"weight":"27","reps":"5"},{"weight":"27","reps":"5"},{"weight":"27","reps":"5"}]}
+  ]},
+  {"date":"2026-02-11T11:32:00","exercises":[
+    {"name":"Разгибание ног сидя статика","sets":[{"weight":"63","reps":"30"},{"weight":"63","reps":"30"}]},
+    {"name":"Разгибание ног сидя","sets":[{"weight":"54","reps":"12"},{"weight":"54","reps":"12"},{"weight":"54","reps":"12"}]},
+    {"name":"Сгибание ног лёжа","sets":[{"weight":"36","reps":"12"},{"weight":"36","reps":"12"},{"weight":"36","reps":"12"}]},
+    {"name":"Приседания со штангой широкая постановка","sets":[{"weight":"60","reps":"6"},{"weight":"60","reps":"6"},{"weight":"60","reps":"6"},{"weight":"60","reps":"6"},{"weight":"60","reps":"6"}]},
+    {"name":"Приводящие ног в тренажёре","sets":[{"weight":"58","reps":"8"},{"weight":"58","reps":"8"},{"weight":"58","reps":"8"}]},
+    {"name":"Жим гантелей сидя вверх плечи","sets":[{"weight":"22","reps":"10"},{"weight":"22","reps":"10"},{"weight":"22","reps":"10"},{"weight":"22","reps":"10"}]},
+    {"name":"Разводка гантелей сидя в стороны плечи","sets":[{"weight":"10","reps":"6"},{"weight":"10","reps":"6"},{"weight":"10","reps":"6"},{"weight":"10","reps":"6"}]},
+    {"name":"Задние дельты лёжа разведение","sets":[{"weight":"10","reps":"10"},{"weight":"10","reps":"10"},{"weight":"10","reps":"10"}]},
+    {"name":"Трицепс косичка разведение в стороны стоя","sets":[{"weight":"40","reps":"10"},{"weight":"40","reps":"10"},{"weight":"40","reps":"10"}]}
+  ]},
+  {"date":"2026-02-13T14:22:00","exercises":[
+    {"name":"Румынская тяга со штангой","sets":[{"weight":"60","reps":"10"},{"weight":"60","reps":"10"},{"weight":"60","reps":"10"},{"weight":"60","reps":"10"},{"weight":"60","reps":"10"}]},
+    {"name":"Жим гантелей сидя вверх плечи","sets":[{"weight":"22","reps":"8"},{"weight":"22","reps":"8"},{"weight":"22","reps":"8"},{"weight":"22","reps":"8"}]},
+    {"name":"Задние дельты стоя в наклоне","sets":[{"weight":"10","reps":"9"},{"weight":"10","reps":"9"},{"weight":"10","reps":"9"}]},
+    {"name":"Обратное разведение в кроссовере наклон","sets":[{"weight":"9","reps":"9"},{"weight":"9","reps":"9"},{"weight":"9","reps":"9"}]},
+    {"name":"Разводка гантелей стоя до горизонта плечи","sets":[{"weight":"10","reps":"9"},{"weight":"10","reps":"9"},{"weight":"10","reps":"9"}]},
+    {"name":"Подъём гантелей перед собой стоя","sets":[{"weight":"6","reps":"9"},{"weight":"6","reps":"9"},{"weight":"6","reps":"9"}]},
+    {"name":"Трицепс прямой блок","sets":[{"weight":"45","reps":"10"},{"weight":"45","reps":"10"},{"weight":"45","reps":"10"}]}
+  ]}
 ]
 
 SKIP_KEYWORDS = ['пресс','кор','планка','растяжка','разминка','стретчинг','экстензи','супинация','пронация','предплечь']
@@ -49,6 +143,8 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS workouts (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, data TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS rules (id INTEGER PRIMARY KEY AUTOINCREMENT, rule TEXT NOT NULL, created_at TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    c.execute("DELETE FROM meta WHERE key='history_loaded'")
+    c.execute("DELETE FROM workouts")
     c.execute("SELECT value FROM meta WHERE key='history_loaded'")
     if not c.fetchone():
         for w in INITIAL_HISTORY:
@@ -211,12 +307,20 @@ async def send_next_exercise(update: Update, session: dict):
         valid = [r for r in session["results"] if r]
         if valid:
             save_workout(session["date"], valid)
-        text = "✅ *Тренировка сохранена!*\n\n"
-        for r in valid:
-            w = r["sets"][0].get("weight","?") if r["sets"] else "?"
-            reps = r["sets"][0].get("reps","?") if r["sets"] else "?"
-            text += f"• {r['name']}: {w}кг × {reps} повт\n"
-        text += "\nОтличная работа! 💪"
+
+        # Summary for trainer screenshot
+        date_label = fmt_date(session["date"]) if session.get("date") else "сегодня"
+        text = f"🏋️ *Тренировка {date_label}*\n\n"
+        for i, r in enumerate(valid):
+            ex_info = next((e for e in exercises if e["name"] == r["name"]), None)
+            sets_count = ex_info["sets"] if ex_info else "?"
+            reps_count = ex_info["reps"] if ex_info else "?"
+            weight = r["sets"][0].get("weight","") if r["sets"] else ""
+            weight_str = f"{weight}кг" if weight else "б/в"
+            text += f"*{i+1}. {r['name']}*\n"
+            text += f"   {sets_count}×{reps_count} | {weight_str}\n\n"
+        text += "Отличная работа! 💪"
+
         session["mode"] = None
         session["current_idx"] = -1
         await update.message.reply_text(text, parse_mode="Markdown", reply_markup=ReplyKeyboardRemove())
