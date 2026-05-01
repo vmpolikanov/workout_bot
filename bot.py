@@ -101,8 +101,14 @@ def delete_rule(rule_id: int):
 
 # ─── History lookup ───────────────────────────────────────────────────────────
 
+MONTHS_RU = {1:"янв",2:"фев",3:"мар",4:"апр",5:"май",6:"июн",7:"июл",8:"авг",9:"сен",10:"окт",11:"ноя",12:"дек"}
+
+def fmt_date(dt_str: str) -> str:
+    d = datetime.fromisoformat(dt_str)
+    return f"{d.day} {MONTHS_RU[d.month]}"
+
 def get_exact_result(exercise_name: str):
-    """Exact match lookup."""
+    """Exact match lookup. Returns (date_str, short_summary)."""
     workouts = get_all_workouts()
     norm = exercise_name.lower().strip()
     for w in reversed(workouts):
@@ -110,9 +116,10 @@ def get_exact_result(exercise_name: str):
             if ex["name"].lower().strip() == norm:
                 sets = [s for s in ex["sets"] if s.get("weight") or s.get("reps")]
                 if sets:
-                    date_str = datetime.fromisoformat(w["date"]).strftime("%-d %b")
-                    sets_str = ", ".join(f"{s.get('weight','?')}кг×{s.get('reps','?')}" for s in sets)
-                    return date_str, sets_str
+                    first = sets[0]
+                    weight = first.get("weight","?")
+                    reps = first.get("reps","?")
+                    return fmt_date(w["date"]), f"{weight}кг × {reps} повт"
     return None, None
 
 def find_similar_exercise(exercise_name: str):
@@ -132,9 +139,13 @@ def find_similar_exercise(exercise_name: str):
 Список упражнений из истории:
 {json.dumps(all_names, ensure_ascii=False)}
 
-Найди самое похожее упражнение из списка (по группе мышц и типу движения).
+Найди самое похожее упражнение из списка по этим критериям (по приоритету):
+1. Снаряд должен совпадать: гантели ≠ блок/трос ≠ штанга ≠ гиря. Это главное.
+2. Группа мышц и тип движения должны совпадать.
+3. Хват или техника похожи.
+
 Верни ТОЛЬКО JSON без markdown: {{"similar": "название из списка"}}
-Если ничего похожего нет — верни {{"similar": null}}"""
+Если подходящего нет (другой снаряд или другая мышца) — верни {{"similar": null}}"""
         }]
     )
     text = response.content[0].text.strip().replace("```json","").replace("```","").strip()
@@ -262,7 +273,7 @@ def answer_question(user_text: str) -> str:
     history = get_all_workouts()
     history_text = ""
     for w in history[-10:]:
-        date_str = datetime.fromisoformat(w["date"]).strftime("%-d %b %Y")
+        date_str = fmt_date(w["date"])
         exes = []
         for ex in w["exercises"]:
             sets_str = ", ".join(f"{s.get('weight','?')}кг×{s.get('reps','?')}" for s in ex["sets"] if s.get("weight") or s.get("reps"))
@@ -330,7 +341,7 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     text = "📊 *Последние тренировки:*\n"
     for w in reversed(workouts[-5:]):
-        date_str = datetime.fromisoformat(w["date"]).strftime("%-d %b %Y")
+        date_str = fmt_date(w["date"])
         names = [ex["name"] for ex in w["exercises"]]
         text += f"\n*{date_str}*\n" + "\n".join(f"  • {n}" for n in names[:4])
         if len(names) > 4:
