@@ -68,6 +68,7 @@ async def get_whoop_data() -> dict | None:
             rec_data = await rec_resp.json()
             cycles = rec_data.get("records", [])
             if not cycles:
+                logger.error("Whoop: no cycles in response")
                 return None
 
             # Today's cycle — for recovery, HRV, RHR, sleep
@@ -75,19 +76,23 @@ async def get_whoop_data() -> dict | None:
             # Yesterday's completed cycle — for Strain
             yesterday_cycle = cycles[1] if len(cycles) > 1 else None
 
-            recovery = today_cycle.get("recovery", {})
-            sleep = today_cycle.get("sleep", {})
+            # New API structure
+            score_data = today_cycle.get("score", {})
+            recovery_score = score_data.get("recovery_score")
+            hrv = score_data.get("hrv_rmssd_milli")
+            rhr = score_data.get("resting_heart_rate")
 
-            recovery_score = recovery.get("score")
-            hrv = recovery.get("hrvRmssd")
-            rhr = recovery.get("restingHeartRate")
-            sleep_duration = sleep.get("qualityDuration", 0)
-            sleep_hours = round(sleep_duration / 3600000, 1) if sleep_duration else None
+            # Sleep from today's cycle
+            sleep_data = today_cycle.get("sleep", {})
+            sleep_duration = sleep_data.get("sleep_performance_percentage")
+            sleep_hours = None
+            if today_cycle.get("sleep", {}).get("total_in_bed_time_milli"):
+                sleep_hours = round(today_cycle["sleep"]["total_in_bed_time_milli"] / 3600000, 1)
 
             # Strain from yesterday's completed cycle
             strain_score = None
             if yesterday_cycle:
-                strain_score = yesterday_cycle.get("strain", {}).get("score")
+                strain_score = yesterday_cycle.get("score", {}).get("strain")
 
             return {
                 "recovery": round(recovery_score) if recovery_score else None,
