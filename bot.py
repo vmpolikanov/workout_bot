@@ -8,6 +8,8 @@ from anthropic import Anthropic
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 import gspread
 from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaInMemoryUpload
 import asyncio
 from datetime import time as dtime
 from telegram.ext import (
@@ -25,6 +27,7 @@ ALLOWED_USER_ID = int(os.environ.get("ALLOWED_USER_ID", "0"))
 client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
 SPREADSHEET_ID = "1PfZefjJFlIwKUFpbhq63jUsLDZpPc6sXO3And6WMeEY"
+OBSIDIAN_FOLDER_ID = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "1EEn3ud0FG8kIqlzwdYJ1MDNId3eFygc3")
 WHOOP_EMAIL = os.environ.get("WHOOP_EMAIL", "")
 WHOOP_PASSWORD = os.environ.get("WHOOP_PASSWORD", "")
 
@@ -172,6 +175,82 @@ def format_whoop_message(data: dict) -> str:
     if data.get("strain"):
         lines.append(f"⚡ Strain вчера: {data['strain']}")
     return "\n".join(lines)
+
+def create_obsidian_note(date: str, exercises: list):
+    """Create a markdown note in Google Drive for Obsidian."""
+    try:
+        creds_json = os.environ.get("GOOGLE_CREDENTIALS", "")
+        if not creds_json:
+            return False
+        import json as _json
+        from googleapiclient.discovery import build
+        from googleapiclient.http import MediaInMemoryUpload
+        creds_data = _json.loads(creds_json)
+        scopes = ["https://www.googleapis.com/auth/drive.file"]
+        creds = Credentials.from_service_account_info(creds_data, scopes=scopes)
+        service = build("drive", "v3", credentials=creds)
+
+        # Build markdown content
+        date_fmt = fmt_date(date)
+        dt = datetime.fromisoformat(date)
+        date_full = dt.strftime("%Y-%m-%d")
+
+        lines = [
+            f"# Тренировка {date_fmt}",
+            f"",
+            f"**Дата:** {date_full}  ",
+            f"**Тип:** силовая",
+            f"",
+            f"## Упражнения",
+            f"",
+            f"| # | Упражнение | Подходы×Повт | Вес |",
+            f"|---|-----------|-------------|-----|",
+        ]
+        for i, ex in enumerate(exercises):
+            sets = [s for s in ex["sets"] if s.get("weight") or s.get("reps")]
+            if sets:
+                weight = sets[0].get("weight", "—")
+                reps = sets[0].get("reps", "—")
+                weight_str = f"{weight}кг" if weight else "б/в"
+                lines.append(f"| {i+1} | {ex['name']} | {len(sets)}×{reps} | {weight_str} |")
+
+        lines += [
+            f"",
+            f"## Заметки",
+            f"",
+            f"_добавь свои наблюдения_",
+            f"",
+            f"## Теги",
+            f"",
+            f"#тренировка #силовая",
+        ]
+
+        md_content = "\n".join(lines).encode("utf-8")
+        filename = f"Тренировка {date_full}.md"
+
+        file_metadata = {
+            "name": filename,
+            "parents": [OBSIDIAN_FOLDER_ID],
+            "mimeType": "text/markdown"
+        }
+        media = MediaInMemoryUpload(md_content, mimetype="text/markdown")
+        service.files().create(body=file_metadata, media_body=media).execute()
+        logger.info(f"Obsidian note created: {filename}")
+        return True
+    except Exception as e:
+        logger.error(f"Obsidian note error: {e}")
+        return False
+
+def export_all_to_obsidian() -> int:
+    """Export all workouts from DB to Obsidian notes in Google Drive."""
+    workouts = get_all_workouts()
+    count = 0
+    for w in workouts:
+        if w["exercises"]:
+            result = create_obsidian_note(w["date"], w["exercises"])
+            if result:
+                count += 1
+    return count
 
 def get_sheet():
     try:
@@ -575,6 +654,7 @@ async def send_next_exercise(update: Update, session: dict):
         if valid:
             save_workout(session["date"], valid)
             write_workout_to_sheet(session["date"], valid)
+            create_obsidian_note(session["date"], valid)
 
         # Summary for trainer screenshot
         date_label = fmt_date(session["date"]) if session.get("date") else "сегодня"
@@ -736,6 +816,16 @@ async def cmd_importsheet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ Импортировано {count} тренировок из таблицы!")
     else:
         await update.message.reply_text("❌ Не удалось импортировать. Проверь таблицу.")
+
+async def cmd_exportobsidian(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update):
+        return
+    await update.message.reply_text("⏳ Выгружаю все тренировки в Obsidian...")
+    count = export_all_to_obsidian()
+    if count:
+        await update.message.reply_text(f"✅ Создано {count} заметок в Google Drive → Obsidian!")
+    else:
+        await update.message.reply_text("❌ Не удалось создать заметки. Проверь доступ к Google Drive.")
 
 async def cmd_exportsheet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
@@ -929,6 +1019,7 @@ def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("exportsheet", cmd_exportsheet))
+    app.add_handler(CommandHandler("exportobsidian", cmd_exportobsidian))
     app.add_handler(CommandHandler("importsheet", cmd_importsheet))
     app.add_handler(CommandHandler("whoop", cmd_whoop))
     
