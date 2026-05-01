@@ -6,6 +6,8 @@ import sqlite3
 from datetime import datetime
 from anthropic import Anthropic
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+import gspread
+from google.oauth2.service_account import Credentials
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     filters, ContextTypes
@@ -19,6 +21,76 @@ ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 ALLOWED_USER_ID = int(os.environ.get("ALLOWED_USER_ID", "0"))
 
 client = Anthropic(api_key=ANTHROPIC_API_KEY)
+
+SPREADSHEET_ID = "1PfZefjJFlIwKUFpbhq63jUsLDZpPc6sXO3And6WMeEY"
+
+def get_sheet():
+    try:
+        creds_json = os.environ.get("GOOGLE_CREDENTIALS", "")
+        if not creds_json:
+            return None
+        import json as _json
+        creds_data = _json.loads(creds_json)
+        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+        creds = Credentials.from_service_account_info(creds_data, scopes=scopes)
+        gc = gspread.authorize(creds)
+        sh = gc.open_by_key(SPREADSHEET_ID)
+        return sh.sheet1
+    except Exception as e:
+        logger.error(f"Google Sheets error: {e}")
+        return None
+
+def ensure_sheet_headers(sheet):
+    try:
+        row1 = sheet.row_values(1)
+        if not row1:
+            sheet.append_row(["Дата", "Упражнение", "Подходы", "Повторения", "Вес (кг)"])
+    except Exception as e:
+        logger.error(f"Header error: {e}")
+
+def write_workout_to_sheet(date: str, exercises: list):
+    try:
+        sheet = get_sheet()
+        if not sheet:
+            return
+        ensure_sheet_headers(sheet)
+        date_str = fmt_date(date)
+        rows = []
+        for ex in exercises:
+            sets = [s for s in ex["sets"] if s.get("weight") or s.get("reps")]
+            if sets:
+                weight = sets[0].get("weight", "")
+                reps = sets[0].get("reps", "")
+                rows.append([date_str, ex["name"], len(sets), reps, weight])
+        if rows:
+            sheet.append_rows(rows)
+            logger.info(f"Written {len(rows)} rows to Google Sheets")
+    except Exception as e:
+        logger.error(f"Sheet write error: {e}")
+
+def export_history_to_sheet():
+    try:
+        sheet = get_sheet()
+        if not sheet:
+            return 0
+        sheet.clear()
+        ensure_sheet_headers(sheet)
+        workouts = get_all_workouts()
+        rows = []
+        for w in workouts:
+            date_str = fmt_date(w["date"])
+            for ex in w["exercises"]:
+                sets = [s for s in ex["sets"] if s.get("weight") or s.get("reps")]
+                if sets:
+                    weight = sets[0].get("weight", "")
+                    reps = sets[0].get("reps", "")
+                    rows.append([date_str, ex["name"], len(sets), reps, weight])
+        if rows:
+            sheet.append_rows(rows)
+        return len(rows)
+    except Exception as e:
+        logger.error(f"Export error: {e}")
+        return 0
 
 INITIAL_HISTORY = [
   {"date":"2026-01-14T10:00:00","exercises":[
@@ -307,6 +379,7 @@ async def send_next_exercise(update: Update, session: dict):
         valid = [r for r in session["results"] if r]
         if valid:
             save_workout(session["date"], valid)
+            write_workout_to_sheet(session["date"], valid)
 
         # Summary for trainer screenshot
         date_label = fmt_date(session["date"]) if session.get("date") else "сегодня"
@@ -434,6 +507,16 @@ def is_allowed(update: Update) -> bool:
     if ALLOWED_USER_ID == 0:
         return True
     return update.effective_user.id == ALLOWED_USER_ID
+
+async def cmd_exportsheet(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update):
+        return
+    await update.message.reply_text("⏳ Выгружаю историю в Google Sheets...")
+    count = export_history_to_sheet()
+    if count:
+        await update.message.reply_text(f"✅ Выгружено {count} записей в таблицу!")
+    else:
+        await update.message.reply_text("❌ Не удалось подключиться к таблице. Проверь переменную GOOGLE_CREDENTIALS.")
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update):
@@ -607,6 +690,7 @@ def main():
     init_db()
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(CommandHandler("exportsheet", cmd_exportsheet))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(CommandHandler("cancel", cmd_cancel))
     app.add_handler(CommandHandler("history", cmd_history))
