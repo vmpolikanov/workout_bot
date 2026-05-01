@@ -329,19 +329,52 @@ async def send_next_exercise(update: Update, session: dict):
     ex = exercises[idx]
     msg = format_exercise_prompt(ex, idx, len(exercises))
 
-    # Quick reply buttons with suggested weight
+    # Build quick reply buttons based on previous result
     _, sets_str = get_exact_result(ex["name"])
-    buttons = []
+    
+    # Try to get weight from exact or similar match
+    last_weight = None
     if sets_str:
-        # Extract weight from last result
         try:
-            last_w = sets_str.split(",")[0].split("кг")[0].strip()
-            buttons.append([f"{last_w}"])
+            last_weight = float(sets_str.split("кг")[0].strip())
         except:
             pass
-    buttons.append(["—"])
+    
+    if last_weight is None:
+        # Try similar exercise
+        _, sim_date, sim_sets = find_similar_exercise(ex["name"])
+        if sim_sets:
+            try:
+                last_weight = float(sim_sets.split("кг")[0].strip())
+            except:
+                pass
 
-    markup = ReplyKeyboardMarkup(buttons, resize_keyboard=True, one_time_keyboard=True) if buttons else ReplyKeyboardRemove()
+    if last_weight is not None:
+        # Generate range: -3 to +5 from last weight, step 1
+        step = 1.0 if last_weight == int(last_weight) else 0.5
+        weights = []
+        w = last_weight - 3
+        while w <= last_weight + 5:
+            if w > 0:
+                val = int(w) if w == int(w) else w
+                weights.append(str(val))
+            w += step
+        # Group into rows of 4
+        buttons = []
+        row = []
+        for i, wt in enumerate(weights):
+            row.append(wt)
+            if len(row) == 4:
+                buttons.append(row)
+                row = []
+        if row:
+            buttons.append(row)
+        buttons.append(["—"])
+    else:
+        # No history at all — only dash
+        buttons = [["—"]]
+
+    markup = ReplyKeyboardMarkup(buttons, resize_keyboard=True, one_time_keyboard=True)
     await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=markup)
 
 # ─── AI helpers ──────────────────────────────────────────────────────────────
